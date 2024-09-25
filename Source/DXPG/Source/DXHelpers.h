@@ -76,8 +76,9 @@ struct DescriptorAllocationView
     size_t Offset;
 
     D3D12_CPU_DESCRIPTOR_HANDLE GetCPUHandle();
-
     D3D12_GPU_DESCRIPTOR_HANDLE GetGPUHandle();
+
+    uint32_t GetIndex() const;
 };
 
 struct DescriptorAllocation
@@ -114,6 +115,11 @@ inline D3D12_CPU_DESCRIPTOR_HANDLE DescriptorAllocationView::GetCPUHandle()
 inline D3D12_GPU_DESCRIPTOR_HANDLE DescriptorAllocationView::GetGPUHandle()
 {
 	return Base->GetGPUHandle(Offset);
+}
+
+inline uint32_t DescriptorAllocationView::GetIndex() const
+{
+	return Base->Index + Offset;
 }
 
 struct DescriptorHeapPage

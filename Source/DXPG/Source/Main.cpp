@@ -209,14 +209,11 @@ struct DirectionalLight : ViewPoint
         InverseZoom = 46.0f;
     }
 
-	LightData ToLightData()
+	dxpg::hlsl::LightDataBuffer ToLightData()
 	{
-		return LightData
+		return dxpg::hlsl::LightDataBuffer
 		{
-			.Directional =
-				{
-					.Direction = Vector3(GetDirection().m128_f32)
-				},
+			.DirectionOrPosition = Vector3(GetDirection().m128_f32),
 			.Color = Color,
 			.Intensity = Intensity,
 			.AmbientColor = AmbientColor
@@ -458,22 +455,22 @@ void Render(ImGuiIO& io, bool& showDemoWindow, bool& showAnotherWindow, ImVec4& 
 	g_DeferredRenderingPipeline.Run(g_pd3dCommandList.Get(), g_Cam.ToViewData(), sceneDataView, *frameCtx);
 
     DXTexture* selectedView = nullptr;
-	D3D12_GPU_DESCRIPTOR_HANDLE selectedSRV = {};
+	DescriptorAllocationView selectedSRVView = {};
     {
         if (g_Controlled == &g_Cam)
         {
             selectedView = &g_DeferredRenderingPipeline.GetOutputBuffer();
-			selectedSRV = g_DeferredRenderingPipeline.GetOutputBufferSRV();
+            selectedSRVView = g_DeferredRenderingPipeline.GetOutputBufferSRV();
         }
         else
         {
 			selectedView = &g_DeferredRenderingPipeline.GetShadowMap();
-			selectedSRV = g_DeferredRenderingPipeline.GetShadowMapSRV();
+            selectedSRVView = g_DeferredRenderingPipeline.GetShadowMapSRV();
         }
     }
 
     g_BlitPipeline.Blit(g_pd3dCommandList.Get(), &g_mainRenderTargetResource[backBufferIdx],
-        selectedView, g_mainRTVSRGBs.GetCPUHandle(backBufferIdx), selectedSRV);
+        selectedView, g_mainRTVSRGBs.GetCPUHandle(backBufferIdx), selectedSRVView.GetIndex());
 	
     TransitionVec(g_mainRenderTargetResource[backBufferIdx], D3D12_RESOURCE_STATE_RENDER_TARGET)
 		.Execute(g_pd3dCommandList.Get());
@@ -533,6 +530,7 @@ bool CreateDeviceD3D()
 #endif
 
     ShaderManager::Create();
+	ShaderManager::Get().Init(g_pd3dDevice.Get());
     {
         g_CPUDescriptorAllocator = CPUDescriptorHeapAllocator::Create(g_pd3dDevice.Get());
 		g_CPUDescriptorAllocator->CreateHeapType(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 1024);

@@ -2,47 +2,11 @@
 
 #include "ShaderManager.h"
 
+#include "RenderResources.hlsli"
+#include "ConstantBuffers.hlsli"
+
 namespace dxpg
 {
-
-
-struct MVP_NORMAL_CB
-{
-	Matrix4x4 ModelViewProjection;
-	Matrix4x4 NormalMatrix;
-};
-
-struct MVP_CB
-{
-	Matrix4x4 ModelViewProjection;
-};
-
-namespace StaticPipelineConsts
-{
-	constexpr const char* ModelViewProjectionCB = "ModelViewProjectionCB";
-	constexpr const char* MaterialInfo = "MaterialInfo";
-	constexpr const char* DiffuseSRV = "DiffuseSRV";
-	constexpr const char* NormalMapSRV = "NormalMapSRV";
-}
-
-namespace ShadowMapPipelineConsts
-{
-	constexpr const char* ModelViewProjectionCB = "ModelViewProjectionCB";
-}
-
-namespace LightingPipelineConsts
-{
-	struct TransformationMatrices
-	{
-		Matrix4x4 LightViewProjection;
-		Matrix4x4 CamInverseView;
-		Matrix4x4 CamInverseProjection;
-	};
-	constexpr const char* LightCB = "LightCB";
-	constexpr const char* TransformationMatricesSTR = "TransformationMatrices";
-	constexpr const char* GBuffers = "GBuffers";
-	constexpr const char* ShadowMap = "ShadowMap";
-}
 
 bool DeferredRenderingPipeline::Setup(ID3D12Device2* dev)
 {
@@ -138,29 +102,6 @@ void DeferredRenderingPipeline::Run(ID3D12GraphicsCommandList2* cmd, ViewData co
 }
 bool DeferredRenderingPipeline::SetupStaticMeshPipeline()
 {
-	RootSignatureBuilder builder{};
-
-	std::vector< CD3DX12_ROOT_PARAMETER1> rootParams;
-	builder.AddConstants(StaticPipelineConsts::ModelViewProjectionCB, sizeof(MVP_NORMAL_CB) / 4, { .ShaderRegister = 0, .Visibility = D3D12_SHADER_VISIBILITY_VERTEX });
-	builder.AddDescriptorTable(StaticPipelineConsts::MaterialInfo, { { CD3DX12_DESCRIPTOR_RANGE1(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 1) } }, D3D12_SHADER_VISIBILITY_PIXEL);
-	builder.AddDescriptorTable(StaticPipelineConsts::DiffuseSRV, { { CD3DX12_DESCRIPTOR_RANGE1(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0) } }, D3D12_SHADER_VISIBILITY_PIXEL);
-	builder.AddDescriptorTable(StaticPipelineConsts::NormalMapSRV, { { CD3DX12_DESCRIPTOR_RANGE1(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 1) } }, D3D12_SHADER_VISIBILITY_PIXEL);
-
-	D3D12_ROOT_SIGNATURE_FLAGS rootSignatureFlags =
-		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT |
-		D3D12_ROOT_SIGNATURE_FLAG_DENY_HULL_SHADER_ROOT_ACCESS |
-		D3D12_ROOT_SIGNATURE_FLAG_DENY_DOMAIN_SHADER_ROOT_ACCESS |
-		D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS;
-
-	CD3DX12_STATIC_SAMPLER_DESC staticSampler(0);
-	staticSampler.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
-	staticSampler.MaxAnisotropy = 16;
-	staticSampler.ComparisonFunc = D3D12_COMPARISON_FUNC_ALWAYS;
-	staticSampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
-
-	builder.AddStaticSampler(staticSampler);
-
-	StaticMeshRootSignature = builder.Build("StaticMeshRS", Device, rootSignatureFlags);
 
 	struct StaticMeshPipelineStateStream : PipelineStateStreamBase
 	{
@@ -183,9 +124,8 @@ bool DeferredRenderingPipeline::SetupStaticMeshPipeline()
 	pipelineStateStream.InputLayout = { inputLayout, _countof(inputLayout) };
 	pipelineStateStream.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 
-	auto* vertexShader = ShaderManager::Get().CompileShader(L"Triangle.vs", DXPG_SHADERS_DIR L"Vertex/StaticMesh.vs.hlsl", ShaderType::Vertex);
-	auto* pixelShader = ShaderManager::Get().CompileShader(L"Triangle.ps", DXPG_SHADERS_DIR L"Pixel/StaticMesh.ps.hlsl", ShaderType::Pixel);
-
+	auto [vertexShader, pixelShader] = ShaderManager::Get().CompileBindlessGraphicsShader(L"Triangle", DXPG_SHADERS_DIR L"Graphics/StaticMesh.hlsl");
+	
 	pipelineStateStream.VS = CD3DX12_SHADER_BYTECODE(vertexShader->Blob.Get());
 	pipelineStateStream.PS = CD3DX12_SHADER_BYTECODE(pixelShader->Blob.Get());
 
@@ -198,16 +138,12 @@ bool DeferredRenderingPipeline::SetupStaticMeshPipeline()
 
 	pipelineStateStream.Rasterizer = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
 
-	StaticMeshPipelineState = PipelineState::Create("StaticMeshPipeline", Device, pipelineStateStream, &StaticMeshRootSignature);
+	StaticMeshPipelineState = PipelineState::Create("StaticMeshPipeline", Device, pipelineStateStream, &ShaderManager::Get().BindlessRootSignature);
 	return true;
 }
 
 bool DeferredRenderingPipeline::SetupShadowMapPipeline()
 {
-	RootSignatureBuilder builder{};
-	builder.AddConstants(ShadowMapPipelineConsts::ModelViewProjectionCB, sizeof(MVP_CB) / 4, { .ShaderRegister = 0, .Visibility = D3D12_SHADER_VISIBILITY_VERTEX });
-	ShadowMapRootSignature = builder.Build("ShadowMapRS", Device, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
-
 	struct ShadowMapPipelineStateStream : PipelineStateStreamBase
 	{
 		CD3DX12_PIPELINE_STATE_STREAM_INPUT_LAYOUT InputLayout;
@@ -226,11 +162,11 @@ bool DeferredRenderingPipeline::SetupShadowMapPipeline()
 	pipelineStateStream.InputLayout = { inputLayout, _countof(inputLayout) };
 	pipelineStateStream.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 
-	pipelineStateStream.VS = CD3DX12_SHADER_BYTECODE(ShaderManager::Get().CompileShader(L"ShadowMap.vs", DXPG_SHADERS_DIR L"Vertex/ShadowMap.vs.hlsl", ShaderType::Vertex)->Blob.Get());
+	pipelineStateStream.VS = CD3DX12_SHADER_BYTECODE(ShaderManager::Get().CompileBindlessVertexShader(L"ShadowMap", DXPG_SHADERS_DIR L"Graphics/Shadowmap.hlsl")->Blob.Get());
 
 	pipelineStateStream.DSVFormat = DXGI_FORMAT_D32_FLOAT;
 
-	ShadowMapPipelineState = PipelineState::Create("ShadowMapPipeline", Device, pipelineStateStream, &ShadowMapRootSignature);
+	ShadowMapPipelineState = PipelineState::Create("ShadowMapPipeline", Device, pipelineStateStream, &ShaderManager::Get().BindlessRootSignature);
 	ShadowMap = DXTexture::Create(Device, L"ShadowMap", {
 		.Width = 1024,
 		.Height = 1024,
@@ -253,35 +189,40 @@ bool DeferredRenderingPipeline::SetupShadowMapPipeline()
 	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 	srvDesc.Texture2D.MipLevels = 1;
 	ShadowMap.CreatePlacedSRV(ShadowMapSRV.GetView(), &srvDesc);
+	ShadowMapSampler = g_GPUDescriptorAllocator->AllocateFromStatic(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, 1);
+
+	//D3D12_FILTER filter = D3D12_FILTER_ANISOTROPIC,
+	//	D3D12_TEXTURE_ADDRESS_MODE addressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP,
+	//	D3D12_TEXTURE_ADDRESS_MODE addressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP,
+	//	D3D12_TEXTURE_ADDRESS_MODE addressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP,
+	//	FLOAT mipLODBias = 0,
+	//	UINT maxAnisotropy = 16,
+	//	D3D12_COMPARISON_FUNC comparisonFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL,
+	//	D3D12_STATIC_BORDER_COLOR borderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE,
+	//	FLOAT minLOD = 0.f,
+	//	FLOAT maxLOD = D3D12_FLOAT32_MAX,
+	//	D3D12_SHADER_VISIBILITY shaderVisibility = D3D12_SHADER_VISIBILITY_ALL,
+	//	UINT registerSpace = 0
+
+	D3D12_SAMPLER_DESC shadowSampler{};
+	shadowSampler.Filter = D3D12_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT;
+	shadowSampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+	shadowSampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+	shadowSampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+	shadowSampler.MipLODBias = 0;
+	shadowSampler.MaxAnisotropy = 16;
+	shadowSampler.ComparisonFunc = D3D12_COMPARISON_FUNC_GREATER_EQUAL;
+	memset(shadowSampler.BorderColor, std::bit_cast<int>(1.0f), sizeof(shadowSampler.BorderColor));
+	shadowSampler.MinLOD = 0;
+	shadowSampler.MaxLOD = D3D12_FLOAT32_MAX;
+	
+	Device->CreateSampler(&shadowSampler, ShadowMapSampler.GetCPUHandle());
+	
 	return true;
 }
 
-
-
 bool DeferredRenderingPipeline::SetupLightingPipeline()
 {
-	RootSignatureBuilder builder{};
-	builder.AddDescriptorTable(LightingPipelineConsts::GBuffers, { {CD3DX12_DESCRIPTOR_RANGE1(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 3, 0)} }, D3D12_SHADER_VISIBILITY_PIXEL);
-	builder.AddConstantBufferView(LightingPipelineConsts::LightCB, { .ShaderRegister = 0, .Visibility = D3D12_SHADER_VISIBILITY_PIXEL, .DescFlags = D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE });
-	builder.AddConstantBufferView(LightingPipelineConsts::TransformationMatricesSTR, { .ShaderRegister = 1, .Visibility = D3D12_SHADER_VISIBILITY_PIXEL, .DescFlags = D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE });
-	builder.AddDescriptorTable(LightingPipelineConsts::ShadowMap, { { CD3DX12_DESCRIPTOR_RANGE1(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 3) } }, D3D12_SHADER_VISIBILITY_PIXEL);
-
-	CD3DX12_STATIC_SAMPLER_DESC staticSampler(0);
-	staticSampler.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
-	staticSampler.MaxAnisotropy = 0;
-	staticSampler.ComparisonFunc = D3D12_COMPARISON_FUNC_ALWAYS;
-	staticSampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
-
-	builder.AddStaticSampler(staticSampler);
-	CD3DX12_STATIC_SAMPLER_DESC shadowSampler(1);
-	shadowSampler.Filter = D3D12_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT;
-	shadowSampler.ComparisonFunc = D3D12_COMPARISON_FUNC_GREATER_EQUAL;
-	shadowSampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
-	shadowSampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-	shadowSampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-	builder.AddStaticSampler(shadowSampler);
-
-	LightingRootSignature = builder.Build("LightingRS", Device, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
 	struct LightingPipelineStateStream : PipelineStateStreamBase
 	{
@@ -294,8 +235,10 @@ bool DeferredRenderingPipeline::SetupLightingPipeline()
 
 	pipelineStateStream.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 
-	pipelineStateStream.VS = CD3DX12_SHADER_BYTECODE(ShaderManager::Get().CompileShader(L"Fullscreen.vs", DXPG_SHADERS_DIR L"Vertex/Fullscreen.vs.hlsl", ShaderType::Vertex)->Blob.Get());
-	pipelineStateStream.PS = CD3DX12_SHADER_BYTECODE(ShaderManager::Get().CompileShader(L"Lighting.ps", DXPG_SHADERS_DIR L"Pixel/Lighting.ps.hlsl", ShaderType::Pixel)->Blob.Get());
+	auto [vertexShader, pixelShader] = ShaderManager::Get().CompileBindlessGraphicsShader(L"Lighting", DXPG_SHADERS_DIR L"Graphics/Lighting.hlsl");
+	
+	pipelineStateStream.VS = CD3DX12_SHADER_BYTECODE(vertexShader->Blob.Get());
+	pipelineStateStream.PS = CD3DX12_SHADER_BYTECODE(pixelShader->Blob.Get());
 
 	D3D12_RT_FORMAT_ARRAY rtvFormats = {};
 	rtvFormats.NumRenderTargets = 1;
@@ -304,16 +247,24 @@ bool DeferredRenderingPipeline::SetupLightingPipeline()
 
 	pipelineStateStream.Rasterizer = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
 
-	LightingPipelineState = PipelineState::Create("LightingPipeline", Device, pipelineStateStream, &LightingRootSignature);
+	LightingPipelineState = PipelineState::Create("LightingPipeline", Device, pipelineStateStream, &ShaderManager::Get().BindlessRootSignature);
 
-	LightBuffer = DXBuffer::Create(Device, L"LightBuffer", sizeof(LightData), D3D12_HEAP_TYPE_DEFAULT);
-	LightTransformationMatricesBuffer = DXBuffer::Create(Device, L"LightTransformationMatricesBuffer", sizeof(LightingPipelineConsts::TransformationMatrices), D3D12_HEAP_TYPE_DEFAULT);
+	LightBuffer = DXBuffer::Create(Device, L"LightBuffer", sizeof(dxpg::hlsl::LightDataBuffer), D3D12_HEAP_TYPE_DEFAULT);
+	LightBufferCBV = g_GPUDescriptorAllocator->AllocateFromStatic(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 1);
+	LightBuffer.CreatePlacedCBV(LightBufferCBV.GetView());
+
+
+	LightTransformationMatricesBuffer = DXBuffer::Create(Device, L"LightTransformationMatricesBuffer", sizeof(dxpg::hlsl::LightTransformBuffer), D3D12_HEAP_TYPE_DEFAULT);
+	LightTransformationMatricesBufferCBV = g_GPUDescriptorAllocator->AllocateFromStatic(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 1);
+	LightTransformationMatricesBuffer.CreatePlacedCBV(LightTransformationMatricesBufferCBV.GetView());
 
 	DepthBufferDSV = g_CPUDescriptorAllocator->AllocateFromStatic(D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 1);
 	AlbedoBufferRTV = g_CPUDescriptorAllocator->AllocateFromStatic(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 1);
 	NormalBufferRTV = g_CPUDescriptorAllocator->AllocateFromStatic(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 1);
 	OutputBufferRTV = g_CPUDescriptorAllocator->AllocateFromStatic(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 1);
+	
 	GBuffersSRV = g_GPUDescriptorAllocator->AllocateFromStatic(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 3);
+
 	OutputBufferSRV = g_GPUDescriptorAllocator->AllocateFromStatic(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 1);
 	return true;
 }
@@ -348,8 +299,7 @@ void DeferredRenderingPipeline::RunStaticMeshPipeline(ID3D12GraphicsCommandList2
 	}
 
 	cmd->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	cmd->SetPipelineState(StaticMeshPipelineState.DXPipelineState.Get());
-	cmd->SetGraphicsRootSignature(StaticMeshPipelineState.RootSignature->DXSignature.Get());
+	StaticMeshPipelineState.Bind(cmd);
 
 	Renderable lastRenderableCfg{};
 	for (auto& renderable : scene.RenderableList)
@@ -360,37 +310,16 @@ void DeferredRenderingPipeline::RunStaticMeshPipeline(ID3D12GraphicsCommandList2
 			cmd->IASetVertexBuffers(0, 1, &renderable.VertexBufferView);
 		}
 
-		if (lastRenderableCfg.MaterialInfo.ptr != renderable.MaterialInfo.ptr)
-		{
-			lastRenderableCfg.MaterialInfo = renderable.MaterialInfo;
-			cmd->SetGraphicsRootDescriptorTable(StaticMeshPipelineState.RootSignature->NameToParameterIndices[StaticPipelineConsts::MaterialInfo], renderable.MaterialInfo);
-		}
-		if (renderable.DiffuseTextureSRV.ptr != 0)
-		{
-			if (lastRenderableCfg.DiffuseTextureSRV.ptr != renderable.DiffuseTextureSRV.ptr)
-			{
-				lastRenderableCfg.DiffuseTextureSRV = renderable.DiffuseTextureSRV;
-				cmd->SetGraphicsRootDescriptorTable(StaticMeshPipelineState.RootSignature->NameToParameterIndices[StaticPipelineConsts::DiffuseSRV], renderable.DiffuseTextureSRV);
-			}
-		}
-		if (renderable.NormalMapTextureSRV.ptr != 0)
-		{
-			if (lastRenderableCfg.NormalMapTextureSRV.ptr != renderable.NormalMapTextureSRV.ptr)
-			{
-				lastRenderableCfg.NormalMapTextureSRV = renderable.NormalMapTextureSRV;
-				cmd->SetGraphicsRootDescriptorTable(StaticMeshPipelineState.RootSignature->NameToParameterIndices[StaticPipelineConsts::NormalMapSRV], renderable.NormalMapTextureSRV);
-			}
-		}
-
 		if (lastRenderableCfg.IndexBufferView.BufferLocation != renderable.IndexBufferView.BufferLocation)
 		{
 			lastRenderableCfg.IndexBufferView = renderable.IndexBufferView;
 			cmd->IASetIndexBuffer(&renderable.IndexBufferView);
 		}
-		MVP_NORMAL_CB mvp{};
-		mvp.ModelViewProjection = XMMatrixMultiply(renderable.GlobalModelMatrix, viewData.ViewProjection);
-		mvp.NormalMatrix = DirectX::XMMatrixTranspose(DirectX::XMMatrixInverse(nullptr, renderable.GlobalModelMatrix));
-		cmd->SetGraphicsRoot32BitConstants(StaticMeshPipelineState.RootSignature->NameToParameterIndices[StaticPipelineConsts::ModelViewProjectionCB], sizeof(MVP_NORMAL_CB) / sizeof(uint32_t), &mvp, 0);
+		dxpg::hlsl::StaticMeshResources staticMeshResources{};
+		staticMeshResources.MVP = XMMatrixMultiply(renderable.GlobalModelMatrix, viewData.ViewProjection);
+		staticMeshResources.Normal = DirectX::XMMatrixTranspose(DirectX::XMMatrixInverse(nullptr, renderable.GlobalModelMatrix));
+		staticMeshResources.MaterialBufferIndex = renderable.MaterialBufferIndex;
+		cmd->SetGraphicsRoot32BitConstants(0, sizeof(staticMeshResources) / 4, &staticMeshResources, 0);
 		cmd->DrawIndexedInstanced(renderable.GetIndexCount(), 1, 0, 0, 0);
 	}
 }
@@ -413,8 +342,7 @@ void DeferredRenderingPipeline::RunShadowMapPipeline(ID3D12GraphicsCommandList2*
 	}
 
 	cmd->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	cmd->SetPipelineState(ShadowMapPipelineState.DXPipelineState.Get());
-	cmd->SetGraphicsRootSignature(ShadowMapPipelineState.RootSignature->DXSignature.Get());
+	ShadowMapPipelineState.Bind(cmd);
 
 	Renderable lastRenderableCfg{};
 	for (auto& renderable : scene.RenderableList)
@@ -429,9 +357,9 @@ void DeferredRenderingPipeline::RunShadowMapPipeline(ID3D12GraphicsCommandList2*
 			lastRenderableCfg.IndexBufferView = renderable.IndexBufferView;
 			cmd->IASetIndexBuffer(&renderable.IndexBufferView);
 		}
-		MVP_CB mvp{};
-		mvp.ModelViewProjection = XMMatrixMultiply(renderable.GlobalModelMatrix, scene.LightView.ViewProjection);
-		cmd->SetGraphicsRoot32BitConstants(ShadowMapPipelineState.RootSignature->NameToParameterIndices[ShadowMapPipelineConsts::ModelViewProjectionCB], sizeof(MVP_CB) / sizeof(uint32_t), &mvp, 0);
+		dxpg::hlsl::ShadowMapResources shadowMapResources{};
+		shadowMapResources.MVP = XMMatrixMultiply(renderable.GlobalModelMatrix, scene.LightView.ViewProjection);
+		cmd->SetGraphicsRoot32BitConstants(0, sizeof(shadowMapResources) / 4, &shadowMapResources, 0);
 		cmd->DrawIndexedInstanced(renderable.GetIndexCount(), 1, 0, 0, 0);
 	}
 }
@@ -459,7 +387,7 @@ void DeferredRenderingPipeline::RunLightingPipeline(ID3D12GraphicsCommandList2* 
 	{
 		TransitionVec(LightBuffer, D3D12_RESOURCE_STATE_COPY_DEST).Execute(cmd);
 		// Update Light Buffer
-		constexpr size_t paramCount = sizeof(LightData) / sizeof(UINT);
+		constexpr size_t paramCount = sizeof(dxpg::hlsl::LightDataBuffer) / sizeof(UINT);
 		D3D12_WRITEBUFFERIMMEDIATE_PARAMETER params[paramCount] = {};
 		for (size_t i = 0; i < paramCount; i++)
 		{
@@ -469,29 +397,36 @@ void DeferredRenderingPipeline::RunLightingPipeline(ID3D12GraphicsCommandList2* 
 		cmd->WriteBufferImmediate(paramCount, params, nullptr);
 		TransitionVec(LightBuffer, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER).Execute(cmd);
 	}
-	cmd->SetGraphicsRootConstantBufferView(LightingPipelineState.RootSignature->NameToParameterIndices[LightingPipelineConsts::LightCB], LightBuffer.GPUAddress());
+
 	// Update Light Transformation Matrices
 	{
 		TransitionVec(LightTransformationMatricesBuffer, D3D12_RESOURCE_STATE_COPY_DEST).Execute(cmd);
-		LightingPipelineConsts::TransformationMatrices matrices{};
-		matrices.LightViewProjection = scene.LightView.ViewProjection;
-		matrices.CamInverseView = DirectX::XMMatrixInverse(nullptr, viewData.View);
-		matrices.CamInverseProjection = DirectX::XMMatrixInverse(nullptr, viewData.Projection);
+		dxpg::hlsl::LightTransformBuffer lighTransform{};
+		lighTransform.LightViewProjection = scene.LightView.ViewProjection;
+		lighTransform.CamInverseView = DirectX::XMMatrixInverse(nullptr, viewData.View);
+		lighTransform.CamInverseProjection = DirectX::XMMatrixInverse(nullptr, viewData.Projection);
 
 		// Update Light Buffer
-		constexpr size_t paramCount = sizeof(matrices) / sizeof(UINT);
+		constexpr size_t paramCount = sizeof(lighTransform) / sizeof(UINT);
 		D3D12_WRITEBUFFERIMMEDIATE_PARAMETER params[paramCount] = {};
 		for (size_t i = 0; i < paramCount; i++)
 		{
 			params[i].Dest = LightTransformationMatricesBuffer.GPUAddress(i * sizeof(UINT));
-			params[i].Value = reinterpret_cast<const UINT*>(&matrices)[i];
+			params[i].Value = reinterpret_cast<const UINT*>(&lighTransform)[i];
 		}
 		cmd->WriteBufferImmediate(paramCount, params, nullptr);
 		TransitionVec(LightTransformationMatricesBuffer, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER).Execute(cmd);
 	}
-	cmd->SetGraphicsRootConstantBufferView(LightingPipelineState.RootSignature->NameToParameterIndices[LightingPipelineConsts::TransformationMatricesSTR], LightTransformationMatricesBuffer.GPUAddress());
-	cmd->SetGraphicsRootDescriptorTable(LightingPipelineState.RootSignature->NameToParameterIndices[LightingPipelineConsts::GBuffers], GBuffersSRV.GetGPUHandle());
-	cmd->SetGraphicsRootDescriptorTable(LightingPipelineState.RootSignature->NameToParameterIndices[LightingPipelineConsts::ShadowMap], ShadowMapSRV.GetGPUHandle());
+	dxpg::hlsl::LightingResources lightingResources{};
+	lightingResources.AlbedoTextureIndex = GBuffersSRV.Index;
+	lightingResources.NormalTextureIndex = GBuffersSRV.GetView(1).GetIndex();
+	lightingResources.DepthTextureIndex = GBuffersSRV.GetView(2).GetIndex();
+	lightingResources.ShadowMapTextureIndex = ShadowMapSRV.Index;
+	lightingResources.ShadowMapSamplerIndex = ShadowMapSampler.Index;
+	lightingResources.LightDataBufferIndex = LightBufferCBV.Index;
+	lightingResources.LightTransformBufferIndex = LightTransformationMatricesBufferCBV.Index;
+
+	cmd->SetGraphicsRoot32BitConstants(0, sizeof(lightingResources) / 4, &lightingResources, 0);
 
 	cmd->DrawInstanced(4, 1, 0, 0);
 }

@@ -1,6 +1,8 @@
 #pragma once
 
 #include "DXHelpers.h"
+#include "RenderResources.hlsli"
+#include "ConstantBuffers.hlsli"
 
 namespace dxpg
 {
@@ -36,9 +38,9 @@ struct FrameContext
 struct Renderable
 {
     std::string Name;
-    D3D12_GPU_DESCRIPTOR_HANDLE MaterialInfo;
-	D3D12_GPU_DESCRIPTOR_HANDLE DiffuseTextureSRV;
-	D3D12_GPU_DESCRIPTOR_HANDLE NormalMapTextureSRV;
+    uint32_t MaterialBufferIndex;
+	uint32_t DiffuseTextureIndex;
+	uint32_t NormalMapTextureIndex;
     D3D12_VERTEX_BUFFER_VIEW VertexBufferView;
     D3D12_INDEX_BUFFER_VIEW IndexBufferView;
     Matrix4x4 GlobalModelMatrix;
@@ -49,31 +51,10 @@ struct Renderable
 	}
 };
 
-struct LightData
-{
-    union
-    {
-        struct
-        {
-            Vector3 Direction;
-            float Padding;
-        } Directional;
-        struct
-        {
-            Vector3 Position;
-            float Padding;
-        } Point;
-    };
-    Vector3 Color;
-    float Intensity;
-    Vector3 AmbientColor;
-    int Type;
-};
-
 struct SceneDataView
 {
     std::vector<Renderable> RenderableList;
-    LightData Light;
+    dxpg::hlsl::LightDataBuffer Light;
     ViewData LightView;
 };
 

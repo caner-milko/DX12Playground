@@ -1,9 +1,7 @@
-struct ModelViewProjection
-{
-    matrix MVP;
-};
+#include "BindlessRootSignature.hlsli"
+#include "RenderResources.hlsli"
 
-ConstantBuffer<ModelViewProjection> ModelViewProjectionCB : register(b0);
+ConstantBuffer<dxpg::ShadowMapResources> Resources : register(b0);
 
 struct VSIn
 {
@@ -18,9 +16,9 @@ struct VSOut
     float4 Pos : SV_POSITION;
 };
 
-VSOut main(VSIn IN)
+VSOut VSMain(VSIn IN)
 {
     VSOut output;
-    output.Pos = mul(ModelViewProjectionCB.MVP, float4(IN.Pos, 1.0));
+    output.Pos = mul(Resources.MVP, float4(IN.Pos, 1.0));
     return output;
 }

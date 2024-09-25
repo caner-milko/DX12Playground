@@ -16,13 +16,13 @@ struct DeferredRenderingPipeline
 	void Run(ID3D12GraphicsCommandList2* cmd, ViewData const& viewData, SceneDataView const& scene, FrameContext& frameCtx);
 
 	DXTexture& GetOutputBuffer() { return OutputBuffer; }
-	D3D12_GPU_DESCRIPTOR_HANDLE GetOutputBufferSRV() { return OutputBufferSRV.GetGPUHandle(); }
+	DescriptorAllocationView GetOutputBufferSRV() { return OutputBufferSRV.GetView(); }
 	DXTexture& GetShadowMap() { return ShadowMap; }
-	D3D12_GPU_DESCRIPTOR_HANDLE GetShadowMapSRV() { return ShadowMapSRV.GetGPUHandle(); }
+	DescriptorAllocationView GetShadowMapSRV() { return ShadowMapSRV.GetView(); }
 	DXTexture& GetAlbedoBuffer() { return AlbedoBuffer; }
-	D3D12_GPU_DESCRIPTOR_HANDLE GetAlbedoBufferSRV() { return GBuffersSRV.GetGPUHandle(); }
+	DescriptorAllocationView GetAlbedoBufferSRV() { return GBuffersSRV.GetView(); }
 	DXTexture& GetNormalBuffer() { return NormalBuffer; }
-	D3D12_GPU_DESCRIPTOR_HANDLE GetNormalBufferSRV() { return GBuffersSRV.GetGPUHandle(1); }
+	DescriptorAllocationView GetNormalBufferSRV() { return GBuffersSRV.GetView(1); }
 private:
 	bool SetupStaticMeshPipeline();
 	bool SetupLightingPipeline();
@@ -35,7 +35,6 @@ private:
 
 
 	ID3D12Device2* Device;
-	RootSignature StaticMeshRootSignature;
 	PipelineState StaticMeshPipelineState;
 
 	DXTexture DepthBuffer;
@@ -47,15 +46,17 @@ private:
 	DescriptorAllocation NormalBufferRTV;
 	DescriptorAllocation GBuffersSRV;
 
-	RootSignature ShadowMapRootSignature;
 	PipelineState ShadowMapPipelineState;
 	DXTexture ShadowMap;
 	DescriptorAllocation ShadowMapDSV;
 	DescriptorAllocation ShadowMapSRV;
+	DescriptorAllocation ShadowMapSampler;
 
 	DXBuffer LightBuffer;
+	DescriptorAllocation LightBufferCBV;
 	DXBuffer LightTransformationMatricesBuffer;
-	RootSignature LightingRootSignature;
+	DescriptorAllocation LightTransformationMatricesBufferCBV;
+
 	PipelineState LightingPipelineState;
 	DXTexture OutputBuffer;
 	DescriptorAllocation OutputBufferRTV;

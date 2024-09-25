@@ -185,7 +185,7 @@ ObjModel* ModelManager::LoadModel(const std::string& modelPath, FrameContext& fr
 
         material.MaterialInfo = g_GPUDescriptorAllocator->AllocateFromStatic(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 1);
 
-		HLSL_ShaderMaterialInfo matInfo = {};
+		dxpg::hlsl::MaterialBuffer matInfo = {};
         bool difTexLoaded = false;
         // Load the textures
         if (!mat.diffuse_texname.empty())
@@ -203,12 +203,12 @@ ObjModel* ModelManager::LoadModel(const std::string& modelPath, FrameContext& fr
                 srvDesc.Texture2D.MipLevels = -1;
                 tex->CreatePlacedSRV(material.DiffuseTextureSRV->GetView(0), &srvDesc);
 				difTexLoaded = true;
-				matInfo.UseDiffuseTexture = 1;
+				matInfo.DiffuseTextureIndex = material.DiffuseTextureSRV->Index;
             }
         }
         if (!difTexLoaded)
         {
-            matInfo.Diffuse = Vector4{ mat.diffuse[0], mat.diffuse[1], mat.diffuse[2], 1.0f };
+            matInfo.Diffuse = XMFLOAT4{ mat.diffuse[0], mat.diffuse[1], mat.diffuse[2], 1.0f };
             material.DiffuseColor = Vector3(mat.diffuse[0], mat.diffuse[1], mat.diffuse[2]);
         }
 		if (!mat.displacement_texname.empty())
@@ -225,11 +225,11 @@ ObjModel* ModelManager::LoadModel(const std::string& modelPath, FrameContext& fr
 				srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 				srvDesc.Texture2D.MipLevels = -1;
 				tex->CreatePlacedSRV(material.NormalMapTextureSRV->GetView(0), &srvDesc);
-				matInfo.UseNormalMap = 1;
+				matInfo.NormalMapTextureIndex = material.NormalMapTextureSRV->Index;
 			}
 		}
 
-        material.MaterialInfoBuffer = DXTypedSingularBuffer<HLSL_ShaderMaterialInfo>::CreateAndUpload(Device, s2ws(mat.name) + L"_MaterialInfo", cmdList, frameCtx.IntermediateResources.emplace_back(), matInfo, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
+        material.MaterialInfoBuffer = DXTypedSingularBuffer<dxpg::hlsl::MaterialBuffer>::CreateAndUpload(Device, s2ws(mat.name) + L"_MaterialInfo", cmdList, frameCtx.IntermediateResources.emplace_back(), matInfo, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
 		material.MaterialInfoBuffer.CreatePlacedCBV(material.MaterialInfo.GetView(0));
     }
 

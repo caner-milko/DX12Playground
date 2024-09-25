@@ -12,6 +12,7 @@ enum class ShaderType {
 struct Shader
 {
 	ComPtr<ID3DBlob> Blob;
+	ComPtr<ID3DBlob> RootSignatureBlob;
 	
 	std::wstring EntryPoint;
 	std::wstring Name;

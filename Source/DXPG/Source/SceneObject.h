@@ -44,11 +44,11 @@ struct MeshObject
 		Renderable renderable{};
 		renderable.Name = Name;
 		renderable.GlobalModelMatrix = XMMatrixMultiply(parentModel, LocalModelMatrix());
-		renderable.MaterialInfo = Material->MaterialInfo.GetGPUHandle();
+		renderable.MaterialBufferIndex = Material->MaterialInfo.Index;
 		if (Material->DiffuseTextureSRV)
-			renderable.DiffuseTextureSRV = Material->DiffuseTextureSRV->GetGPUHandle();
+			renderable.DiffuseTextureIndex = Material->DiffuseTextureSRV->Index;
 		if (Material->NormalMapTextureSRV)
-			renderable.NormalMapTextureSRV = Material->NormalMapTextureSRV->GetGPUHandle();
+			renderable.NormalMapTextureIndex = Material->NormalMapTextureSRV->Index;
 		renderable.VertexBufferView = IndexedModel->Model->VertexBufferView;
 		renderable.IndexBufferView = IndexedModel->IndexBufferView;
 		return renderable;

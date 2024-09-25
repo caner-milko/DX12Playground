@@ -11,6 +11,39 @@ ShaderManager::ShaderManager()
 	ThrowIfFailed(DxcCreateInstance(CLSID_DxcUtils, IID_PPV_ARGS(&Utils)));
 	ThrowIfFailed(DxcCreateInstance(CLSID_DxcCompiler, IID_PPV_ARGS(&Compiler)));
 	ThrowIfFailed(Utils->CreateDefaultIncludeHandler(&IncludeHandler));
+
+}
+
+void ShaderManager::Init(ID3D12Device* device)
+{
+	auto vertexShader = CompileBindlessVertexShader(L"Fullscreen", DXPG_SHADERS_DIR L"FullscreenVS.hlsli");
+	ThrowIfFailed(device->CreateRootSignature(0u, vertexShader->RootSignatureBlob->GetBufferPointer(),
+		vertexShader->RootSignatureBlob->GetBufferSize(),
+		IID_PPV_ARGS(&BindlessRootSignature.DXSignature)));
+	BindlessRootSignature.DXSignature->SetName(L"BindlessRootSignature");
+}
+
+std::pair<Shader*, Shader*> ShaderManager::CompileBindlessGraphicsShader(std::wstring_view name, std::wstring_view shaderPath, std::span<const std::wstring_view> includeFolders)
+{
+	std::vector<std::wstring_view> includeFoldersCopy{ {DXPG_SHADERS_DIR L""} };
+	includeFoldersCopy.insert(includeFoldersCopy.end(), includeFolders.begin(), includeFolders.end());
+	auto vs = CompileShader(std::wstring(name) + L".vs", shaderPath, ShaderType::Vertex, L"VSMain", includeFoldersCopy);
+	auto ps = CompileShader(std::wstring(name) + L".ps", shaderPath, ShaderType::Pixel, L"PSMain", includeFoldersCopy);
+	return { vs, ps };
+}
+
+Shader* ShaderManager::CompileBindlessVertexShader(std::wstring_view name, std::wstring_view shaderPath, std::span<const std::wstring_view> includeFolders)
+{
+	std::vector<std::wstring_view> includeFoldersCopy{ {DXPG_SHADERS_DIR L""} };
+	includeFoldersCopy.insert(includeFoldersCopy.end(), includeFolders.begin(), includeFolders.end());
+	return CompileShader(std::wstring(name) + L".vs", shaderPath, ShaderType::Vertex, L"VSMain", includeFoldersCopy);
+}
+
+Shader* ShaderManager::CompileBindlessComputeShader(std::wstring_view name, std::wstring_view shaderPath, std::span<const std::wstring_view> includeFolders)
+{
+	std::vector<std::wstring_view> includeFoldersCopy{ {DXPG_SHADERS_DIR L""} };
+	includeFoldersCopy.insert(includeFoldersCopy.end(), includeFolders.begin(), includeFolders.end());
+	return CompileShader(std::wstring(name) + L".cs", shaderPath, ShaderType::Compute, L"Main", includeFoldersCopy);
 }
 
 Shader* ShaderManager::CompileShader(std::wstring_view name, std::wstring_view shaderPath, ShaderType type, std::wstring_view entryPoint, std::span<const std::wstring_view> includeFolders)
@@ -70,6 +103,9 @@ Shader* ShaderManager::CompileShader(std::wstring_view name, std::wstring_view s
 	if (pErrors != nullptr && pErrors->GetStringLength() != 0)
 		wprintf(L"Warnings and Errors:\n%S\n", pErrors->GetStringPointer());
 
+	ComPtr<ID3DBlob> rootSignatureBlob{ nullptr };
+	results->GetOutput(DXC_OUT_ROOT_SIGNATURE, IID_PPV_ARGS(&rootSignatureBlob), nullptr);
+
 	HRESULT hrStatus;
 	results->GetStatus(&hrStatus);
 	if (FAILED(hrStatus))
@@ -88,6 +124,7 @@ Shader* ShaderManager::CompileShader(std::wstring_view name, std::wstring_view s
 	shader->Path = shaderPath;
 	shader->Name = name;
 	shader->Blob = compiledBlob;
+	shader->RootSignatureBlob = rootSignatureBlob;
 	shader->Type = type;
 	return shader.get();
 }
