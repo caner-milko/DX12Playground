@@ -46,7 +46,7 @@ DepthStencilView DXTexture::CreateDSV(D3D12_DEPTH_STENCIL_VIEW_DESC const* dsvDe
 	return DepthStencilView::Create({ ResourceViewToDesc<ViewTypes::DepthStencilView>{ dsvDesc, Resource.Get() } });
 }
 
-DXBuffer DXBuffer::Create(ID3D12Device* device, std::wstring name, size_t size, D3D12_HEAP_TYPE heapType, D3D12_RESOURCE_STATES state, D3D12_RESOURCE_FLAGS flags)
+DXBuffer DXBuffer::Create(ID3D12Device* device, std::wstring name, size_t size, D3D12_HEAP_TYPE heapType, D3D12_RESOURCE_FLAGS flags)
 {
 	size = size < 256 ? 256 : size;
 	ComPtr<ID3D12Resource> resource;
@@ -56,15 +56,16 @@ DXBuffer DXBuffer::Create(ID3D12Device* device, std::wstring name, size_t size, 
 		&heapProp,
 		D3D12_HEAP_FLAG_NONE,
 		&desc,
-		state,
+		D3D12_RESOURCE_STATE_COMMON,
 		nullptr,
 		IID_PPV_ARGS(&resource));
-	return DXBuffer(name, resource, state, device, size);
+	return DXBuffer(name, resource, device, size);
 }
 
 DXBuffer DXBuffer::CreateAndUpload(ID3D12Device* device, std::wstring name, ID3D12GraphicsCommandList* cmdList, ComPtr<ID3D12Resource>& outUploadBuf, std::span<const std::byte> data, D3D12_RESOURCE_STATES state, D3D12_RESOURCE_FLAGS flags)
 {
-	auto buffer = Create(device, name, data.size(), D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_STATE_COPY_DEST, flags);
+	auto buffer = Create(device, name, data.size(), D3D12_HEAP_TYPE_DEFAULT, flags);
+	TransitionVec(buffer, D3D12_RESOURCE_STATE_COPY_DEST).Execute(cmdList);
 	outUploadBuf = buffer.Upload(cmdList, data);
 	TransitionVec(buffer, state).Execute(cmdList);
 	return buffer;
@@ -73,7 +74,8 @@ DXBuffer DXBuffer::CreateAndUpload(ID3D12Device* device, std::wstring name, ID3D
 
 ComPtr<ID3D12Resource> DXBuffer::Upload(ID3D12GraphicsCommandList* cmdList, std::span<const std::byte> data, size_t offset)
 {
-	auto uploadResource = Create(Device, Name + L"UploadBuffer", data.size(), D3D12_HEAP_TYPE_UPLOAD, D3D12_RESOURCE_STATE_GENERIC_READ);
+	auto uploadResource = Create(Device, Name + L"UploadBuffer", data.size(), D3D12_HEAP_TYPE_UPLOAD);
+	TransitionVec(uploadResource, D3D12_RESOURCE_STATE_GENERIC_READ).Execute(cmdList);
 	CD3DX12_RANGE readRange(0, 0);
 	memcpy(uploadResource.Map(), data.data(), data.size());
 	uploadResource.Unmap();

@@ -43,7 +43,7 @@ bool GenerateMipsPipeline::Setup(ID3D12Device2* dev)
 
 	auto heapProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
 
-	GlobalCounterBuffer = DXTypedSingularBuffer<GlobalCounterStruct>::Create(dev, L"GlobalCounterBuffer", D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+	GlobalCounterBuffer = DXTypedSingularBuffer<GlobalCounterStruct>::Create(dev, L"GlobalCounterBuffer", D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
 
 	GlobalCounterUAV = GlobalCounterBuffer.CreateTypedUAV();
 	return true;
@@ -64,7 +64,8 @@ void GenerateMipsPipeline::GenerateMips(FrameContext& frameCtx, ID3D12GraphicsCo
 
 	auto heapProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
 
-	auto cb = DXBuffer::Create(Device, L"SPDConstants", sizeof(SpdConstants), D3D12_HEAP_TYPE_UPLOAD, D3D12_RESOURCE_STATE_GENERIC_READ);
+	auto cb = DXBuffer::Create(Device, L"SPDConstants", sizeof(SpdConstants), D3D12_HEAP_TYPE_UPLOAD);
+	TransitionVec(cb, D3D12_RESOURCE_STATE_GENERIC_READ).Execute(cmdList);
 	frameCtx.IntermediateResources.push_back(cb.Resource);
 	auto* consts = cb.Map<SpdConstants>();
 

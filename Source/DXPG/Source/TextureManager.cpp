@@ -54,8 +54,8 @@ DXTexture* dxpg::TextureManager::LoadTexture(std::filesystem::path const& path, 
 	// Copy the data to the texture
 	{
 		// Create the intermediate upload heap
-		auto intermediateBuf = DXBuffer::Create(Device, path.filename().wstring() + L"_IntermediateBuffer", width * height * desiredComp, D3D12_HEAP_TYPE_UPLOAD, D3D12_RESOURCE_STATE_GENERIC_READ);
-
+		auto intermediateBuf = DXBuffer::Create(Device, path.filename().wstring() + L"_IntermediateBuffer", width * height * desiredComp, D3D12_HEAP_TYPE_UPLOAD);
+		TransitionVec(intermediateBuf, D3D12_RESOURCE_STATE_GENERIC_READ).Execute(cmdList);
 		frameCtx.IntermediateResources.push_back(intermediateBuf.Resource);
 
 		D3D12_SUBRESOURCE_DATA subresourceData = {};

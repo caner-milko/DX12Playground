@@ -73,7 +73,7 @@ struct DXTexture : DXResource
 
 struct DXBuffer : DXResource
 {
-	static DXBuffer Create(ID3D12Device* device, std::wstring name, size_t size, D3D12_HEAP_TYPE heapType, D3D12_RESOURCE_STATES state, D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE);
+	static DXBuffer Create(ID3D12Device* device, std::wstring name, size_t size, D3D12_HEAP_TYPE heapType, D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE);
 
 	template<typename T>
 	static DXBuffer CreateAndUpload(ID3D12Device* device, std::wstring name, ID3D12GraphicsCommandList* cmdList, ComPtr<ID3D12Resource>& outUploadBuf, std::span<const T> data, D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE)
@@ -137,15 +137,15 @@ struct DXBuffer : DXResource
 	size_t Size = 0;
 
 	DXBuffer() = default;
-	DXBuffer(std::wstring name, ComPtr<ID3D12Resource> resource, D3D12_RESOURCE_STATES startState, ID3D12Device* dev, size_t size) noexcept : DXResource(name, resource, startState, dev), Size(size) {}
+	DXBuffer(std::wstring name, ComPtr<ID3D12Resource> resource, ID3D12Device* dev, size_t size) noexcept : DXResource(name, resource, D3D12_RESOURCE_STATE_COMMON, dev), Size(size) {}
 };
 
 template<typename T>
 struct DXTypedBuffer : DXBuffer
 {
-	static DXTypedBuffer Create(ID3D12Device* device, std::wstring name, size_t numElements, D3D12_HEAP_TYPE heapType, D3D12_RESOURCE_STATES state, D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE)
+	static DXTypedBuffer Create(ID3D12Device* device, std::wstring name, size_t numElements, D3D12_HEAP_TYPE heapType, D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE)
 	{
-		return DXTypedBuffer(DXBuffer::Create(device, name, numElements * sizeof(T), heapType, state, flags));
+		return DXTypedBuffer(DXBuffer::Create(device, name, numElements * sizeof(T), heapType, flags));
 	}
 
 	static DXTypedBuffer CreateAndUpload(ID3D12Device* device, std::wstring name, ID3D12GraphicsCommandList* cmdList, ComPtr<ID3D12Resource>& outUploadBuf, std::span<const T> data, D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE)
@@ -170,9 +170,9 @@ struct DXTypedBuffer : DXBuffer
 template<typename T>
 struct DXTypedSingularBuffer : DXTypedBuffer<T>
 {
-	static DXTypedSingularBuffer<T> Create(ID3D12Device* device, std::wstring name, D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE)
+	static DXTypedSingularBuffer<T> Create(ID3D12Device* device, std::wstring name, D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE)
 	{
-		return static_cast<DXTypedSingularBuffer<T>>(DXTypedBuffer<T>::Create(device, name, 1, D3D12_HEAP_TYPE_DEFAULT, state, flags));
+		return static_cast<DXTypedSingularBuffer<T>>(DXTypedBuffer<T>::Create(device, name, 1, D3D12_HEAP_TYPE_DEFAULT, flags));
 	}
 
 	static DXTypedSingularBuffer<T> CreateAndUpload(ID3D12Device* device, std::wstring name, ID3D12GraphicsCommandList* cmdList, ComPtr<ID3D12Resource>& outUploadResource, T const& data, D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE)

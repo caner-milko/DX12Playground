@@ -5,11 +5,11 @@ namespace dxpg
 {
 bool BlitPipeline::Setup(ID3D12Device2* dev)
 {
-    Device = dev;
+	Device = dev;
 
 	RootSignatureBuilder builder{};
 	builder.AddDescriptorTable("SourceSRV", { { CD3DX12_DESCRIPTOR_RANGE1(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0) } }, D3D12_SHADER_VISIBILITY_PIXEL);
-	
+
 	CD3DX12_STATIC_SAMPLER_DESC staticSampler(0);
 	staticSampler.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
 	staticSampler.MaxAnisotropy = 0;

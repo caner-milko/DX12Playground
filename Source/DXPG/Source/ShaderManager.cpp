@@ -19,13 +19,13 @@ Shader* ShaderManager::CompileShader(std::wstring_view name, std::wstring_view s
 	switch (type)
 	{
 	case ShaderType::Vertex:
-		shaderType = L"vs_6_2";
+		shaderType = L"vs_6_6";
 		break;
 	case ShaderType::Pixel:
-		shaderType = L"ps_6_2";
+		shaderType = L"ps_6_6";
 		break;
 	case ShaderType::Compute:
-		shaderType = L"cs_6_2";
+		shaderType = L"cs_6_6";
 		break;
 	}
 

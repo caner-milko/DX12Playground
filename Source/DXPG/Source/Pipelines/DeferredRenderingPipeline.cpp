@@ -306,8 +306,8 @@ bool DeferredRenderingPipeline::SetupLightingPipeline()
 
 	LightingPipelineState = PipelineState::Create("LightingPipeline", Device, pipelineStateStream, &LightingRootSignature);
 
-	LightBuffer = DXBuffer::Create(Device, L"LightBuffer", sizeof(LightData), D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
-	LightTransformationMatricesBuffer = DXBuffer::Create(Device, L"LightTransformationMatricesBuffer", sizeof(LightingPipelineConsts::TransformationMatrices), D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
+	LightBuffer = DXBuffer::Create(Device, L"LightBuffer", sizeof(LightData), D3D12_HEAP_TYPE_DEFAULT);
+	LightTransformationMatricesBuffer = DXBuffer::Create(Device, L"LightTransformationMatricesBuffer", sizeof(LightingPipelineConsts::TransformationMatrices), D3D12_HEAP_TYPE_DEFAULT);
 
 	DepthBufferDSV = g_CPUDescriptorAllocator->AllocateFromStatic(D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 1);
 	AlbedoBufferRTV = g_CPUDescriptorAllocator->AllocateFromStatic(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 1);
